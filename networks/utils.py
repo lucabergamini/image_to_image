@@ -37,22 +37,22 @@ class ResidualBlock(nn.Module):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, input_features):
+    def __init__(self, input_features,initial_features_map=32):
         super(AutoEncoder, self).__init__()
         self.c7s1_32 = nn.Sequential(
             nn.ReflectionPad2d(padding=3),
-            nn.Conv2d(in_channels=input_features, out_channels=32, kernel_size=7, stride=1, padding=0),
-            nn.InstanceNorm2d(num_features=32, affine=False),
+            nn.Conv2d(in_channels=input_features, out_channels=initial_features_map, kernel_size=7, stride=1, padding=0),
+            nn.InstanceNorm2d(num_features=initial_features_map, affine=False),
             nn.ReLU(True)
         )
         d64 = nn.Sequential(
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=2, padding=1),
-            nn.InstanceNorm2d(num_features=64, affine=False),
+            nn.Conv2d(in_channels=initial_features_map, out_channels=initial_features_map*2, kernel_size=3, stride=2, padding=1),
+            nn.InstanceNorm2d(num_features=initial_features_map*2, affine=False),
             nn.ReLU(True)
         )
         d128 = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=2, padding=1),
-            nn.InstanceNorm2d(num_features=128, affine=False),
+            nn.Conv2d(in_channels=initial_features_map*2, out_channels=initial_features_map*4, kernel_size=3, stride=2, padding=1),
+            nn.InstanceNorm2d(num_features=initial_features_map*4, affine=False),
             nn.ReLU(True)
         )
         self.down = nn.Sequential(
@@ -61,18 +61,18 @@ class AutoEncoder(nn.Module):
         )
         self.residuals = nn.ModuleList()
         for i in range(9):
-            self.residuals.append(ResidualBlock(input_features=128, output_features=128))
+            self.residuals.append(ResidualBlock(input_features=initial_features_map*4, output_features=initial_features_map*4))
 
         u64 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=3, padding=1,
+            nn.ConvTranspose2d(in_channels=initial_features_map*4, out_channels=initial_features_map*2, kernel_size=3, padding=1,
                                stride=2, output_padding=1),
-            nn.InstanceNorm2d(num_features=64, affine=False),
+            nn.InstanceNorm2d(num_features=initial_features_map*2, affine=False),
             nn.ReLU(True)
         )
         u32 = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=3, padding=1,
+            nn.ConvTranspose2d(in_channels=initial_features_map*2, out_channels=initial_features_map, kernel_size=3, padding=1,
                                stride=2, output_padding=1),
-            nn.InstanceNorm2d(num_features=32, affine=False),
+            nn.InstanceNorm2d(num_features=initial_features_map, affine=False),
             nn.ReLU(True)
         )
         self.up = nn.Sequential(
@@ -81,7 +81,7 @@ class AutoEncoder(nn.Module):
         )
         self.c7s1_3 = nn.Sequential(
             nn.ReflectionPad2d(padding=3),
-            nn.Conv2d(in_channels=32, out_channels=3, kernel_size=7, stride=1, padding=0),
+            nn.Conv2d(in_channels=initial_features_map, out_channels=3, kernel_size=7, stride=1, padding=0),
             nn.Tanh()
         )
 

@@ -64,13 +64,13 @@ class AdversarialAutoEncoder(nn.Module):
 
 
 class CycleGan(nn.Module):
-    def __init__(self):
+    def __init__(self,initial_fetures_map_enocer=32):
         super(CycleGan, self).__init__()
         #A
-        self.autoencoder_G = AutoEncoder(input_features=3)
+        self.autoencoder_G = AutoEncoder(input_features=3,initial_features_map=initial_fetures_map_enocer)
         self.patch_G = PatchDiscriminator(input_features=3)
         #B
-        self.autoencoder_F = AutoEncoder(input_features=3)
+        self.autoencoder_F = AutoEncoder(input_features=3,initial_features_map=initial_fetures_map_enocer)
         self.patch_F = PatchDiscriminator(input_features=3)
 
         self.init_parameters()
@@ -104,10 +104,8 @@ class CycleGan(nn.Module):
             ten_classifications_G = self.patch_G(ten_GAN_F)
             ten_classifications_F = self.patch_F(ten_GAN_G)
             #CYCLE LOSS
-            #self.eval()
             ten_Y_X_Y = self.autoencoder_G(ten_Y_X)
             ten_X_Y_X = self.autoencoder_F(ten_X_Y)
-            #self.train()
             return ten_original_X,ten_original_Y,ten_classifications_G,ten_classifications_F,ten_X_Y_X,ten_Y_X_Y
             #return ten_original_X,ten_original_Y,ten_classifications_G,ten_classifications_F,ten_X_Y,ten_Y_X
         else:
@@ -136,13 +134,15 @@ class CycleGan(nn.Module):
         :return:
         """
         #GAN loss
-        gan_discriminator_G = nn.MSELoss()(ten_classifications_G[0:batch_size],torch.ones_like(ten_classifications_G[0:batch_size]).cuda())+\
-                              nn.MSELoss()(ten_classifications_G[batch_size:],torch.zeros_like(ten_classifications_G[batch_size:]).cuda())
+        gan_discriminator_G = nn.MSELoss()(ten_classifications_G[0:batch_size],
+                                           torch.ones_like(ten_classifications_G[0:batch_size]).cuda())+\
+                              nn.MSELoss()(ten_classifications_G[batch_size:],
+                                           torch.zeros_like(ten_classifications_G[batch_size:]).cuda())
 
         gan_discriminator_F = nn.MSELoss()(ten_classifications_F[0:batch_size],
                                            torch.ones_like(ten_classifications_F[0:batch_size]).cuda()) + \
                               nn.MSELoss()(ten_classifications_F[batch_size:],
-                                           torch.zeros_like(ten_classifications_G[batch_size:]).cuda())
+                                           torch.zeros_like(ten_classifications_F[batch_size:]).cuda())
         gan_discriminator_G /=2
         gan_discriminator_F /=2
         gan_autoencoder_G = nn.MSELoss()(ten_classifications_G[batch_size:],
