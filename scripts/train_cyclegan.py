@@ -96,15 +96,14 @@ if __name__ == "__main__":
         loss_cycle_G_mean = RollingMeasure()
         loss_cycle_F_mean = RollingMeasure()
 
-        loss_autoencoder_G_mean = RollingMeasure()
-        loss_autoencoder_F_mean = RollingMeasure()
+        loss_gan_autoencoder_G_mean = RollingMeasure()
+        loss_gan_autoencoder_F_mean = RollingMeasure()
         loss_discriminator_G_mean = RollingMeasure()
         loss_discriminator_F_mean = RollingMeasure()
         print("LR:{}".format(lr_autoencoder.get_lr()))
 
         # for each batch
         for j, (data_X,data_Y) in enumerate(zip(dataloader_X, dataloader_Y)):
-            a = time.time()
             # set to train mode
             train_batch_size = len(data_X)
             net.train()
@@ -113,59 +112,32 @@ if __name__ == "__main__":
             data_Y = Variable(data_Y, requires_grad=False).float().cuda()
 
             # get output
-            ten_original_X, ten_original_Y, ten_classifications_G, ten_classifications_F, ten_X_Y_X, ten_Y_X_Y = net(data_X,data_Y)
-            print(time.time()-a)
-            # loss, nothing special here
-            l1_G, gan_autoencoder_G, gan_discriminator_G, l1_F, gan_autoencoder_F, gan_discriminator_F = CycleGan.loss(ten_original_X, ten_original_Y, ten_classifications_G, ten_classifications_F, ten_X_Y_X, ten_Y_X_Y,train_batch_size)
-            # THIS IS THE MOST IMPORTANT PART OF THE CODE
-            print(time.time()-a)
-            loss_autoencoder_G = lambda_mse*l1_G + gan_autoencoder_G
-            loss_autoencoder_F = lambda_mse*l1_F + gan_autoencoder_F
-            loss_discriminator_G = gan_discriminator_G
-            loss_discriminator_F = gan_discriminator_F
-
+            ten_original_X, ten_original_Y, ten_original_Y_classification, ten_X_Y_classification, ten_original_X_classification, ten_Y_X_classification, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, loss_discriminator_G, l1_F, loss_gan_autoencoder_F, loss_discriminator_F = net(data_X,data_Y,optimizer_autoencoder,optimizer_discriminator)
             # register mean values of the losses for logging
             loss_cycle_G_mean(l1_G.data.cpu().numpy()[0])
             loss_cycle_F_mean(l1_F.data.cpu().numpy()[0])
-            loss_autoencoder_G_mean(loss_autoencoder_G.data.cpu().numpy()[0])
-            loss_autoencoder_F_mean(loss_autoencoder_F.data.cpu().numpy()[0])
+            loss_gan_autoencoder_G_mean(loss_gan_autoencoder_G.data.cpu().numpy()[0])
+            loss_gan_autoencoder_F_mean(loss_gan_autoencoder_F.data.cpu().numpy()[0])
             loss_discriminator_G_mean(loss_discriminator_G.data.cpu().numpy()[0])
             loss_discriminator_F_mean(loss_discriminator_F.data.cpu().numpy()[0])
-
-            print(time.time()-a)
-
-            # BACKPROP
-            # clean grads
-            net.zero_grad()
-            loss_autoencoder = loss_autoencoder_F+loss_autoencoder_G
-            loss_autoencoder.backward(retain_graph=True)
-            optimizer_autoencoder.step()
-            #clean the discriminator
-            net.patch_F.zero_grad()
-            loss_discriminator_F.backward(retain_graph=False)
-            net.patch_G.zero_grad()
-            loss_discriminator_G.backward(retain_graph=False)
-            optimizer_discriminator.step()
-            print(time.time()-a)
-            # LOGGING
             progress.update(progress.value + 1, loss_cycle_G=loss_cycle_G_mean.measure,
                             loss_cycle_F=loss_cycle_F_mean.measure,
-                           loss_autoencoder_G=loss_autoencoder_G_mean.measure,
-                           loss_autoencoder_F=loss_autoencoder_F_mean.measure,
-                           loss_discriminator_G=loss_discriminator_G_mean.measure,
-                           loss_discriminator_F=loss_discriminator_F_mean.measure,
-                           epoch=i + 1)
+                            loss_autoencoder_G=loss_gan_autoencoder_G_mean.measure,
+                            loss_autoencoder_F=loss_gan_autoencoder_F_mean.measure,
+                            loss_discriminator_G=loss_discriminator_G_mean.measure,
+                            loss_discriminator_F=loss_discriminator_F_mean.measure,
+                            epoch=i + 1)
 
 
-            if j== 8:
-                exit()
+
+
         # EPOCH END
         lr_autoencoder.step()
         lr_discriminator.step()
         progress.finish()
 
-        writer.add_scalar('loss_autoencoder_G', loss_autoencoder_G_mean.measure, step_index)
-        writer.add_scalar('loss_autoencoder_F', loss_autoencoder_F_mean.measure, step_index)
+        writer.add_scalar('loss_autoencoder_G', loss_gan_autoencoder_G_mean.measure, step_index)
+        writer.add_scalar('loss_autoencoder_F', loss_gan_autoencoder_F_mean.measure, step_index)
         writer.add_scalar('loss_cycle_G', loss_cycle_G_mean.measure, step_index)
         writer.add_scalar('loss_cycle_F', loss_cycle_F_mean.measure, step_index)
         writer.add_scalar('loss_discriminator_G', loss_discriminator_G_mean.measure, step_index)

@@ -5,7 +5,6 @@ from torchvision import transforms
 import numpy
 
 class DATASET(Dataset):
-
     def __init__(self, data_folder):
         #list of file names
         self.data_names = [os.path.join(data_folder, name) for name in sorted(os.listdir(data_folder))]
@@ -31,9 +30,12 @@ class DATASET(Dataset):
         if data.shape[0] != 256:
             data = cv2.resize(data,(256,256),interpolation=cv2.INTER_CUBIC)
         # random flip
+        pyplot.imshow(data)
+        pyplot.show()
         if numpy.random.randint(0,2,1)[0] == 1:
             data = cv2.flip(data,1)
-
+        pyplot.imshow(data)
+        pyplot.show()
         # CHANNEL FIRST
         data = self.transform(data)
         #data = data.transpose(2, 0, 1)
@@ -45,8 +47,8 @@ if __name__ == "__main__":
     import torch
     from torchvision.utils import make_grid
     from matplotlib import pyplot
-    dataloader_X = torch.utils.data.DataLoader(DATASET("/home/luca/Desktop/image_to_image/dataset/PHOTO/train"), batch_size=1,
-                                               shuffle=False, num_workers=2)
+    dataloader_X = torch.utils.data.DataLoader(DATASET("/home/lapis/Desktop/image_to_image/dataset/PHOTO/train"), batch_size=1,
+                                               shuffle=False, num_workers=1)
     for i,d in enumerate(dataloader_X):
 
         pass
