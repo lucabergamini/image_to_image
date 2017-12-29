@@ -15,7 +15,9 @@ import progressbar
 from torchvision.utils import make_grid
 from generator.generator import DATASET
 from scripts.utils import RollingMeasure
+import itertools
 import time
+from PIL import Image
 
 if __name__ == "__main__":
 
@@ -42,7 +44,8 @@ if __name__ == "__main__":
     decay_lr = args.decay_lr
     net = CycleGan(initial_fetures_map_enocer=64).cuda()
     print(net)
-    #exit()
+    print("autoencdoer parameters:{}",numpy.sum([p.numel() for p in net.autoencoder_G.parameters()]))
+    print("discriminator parameters:{}",numpy.sum([p.numel() for p in net.patch_G.parameters()]))
     writer = SummaryWriter(comment="_CYCLE")
 
     # DATASET
@@ -60,7 +63,7 @@ if __name__ == "__main__":
 
     # OPTIM-LOSS
     # an optimizer for each of the sub-networks, so we can selectively backprop
-    optimizer_autoencoder = Adam(params=[p for p in net.autoencoder_G.parameters()]+[p for p in net.autoencoder_F.parameters()],lr=lr,betas=(0.5,0.999))
+    optimizer_autoencoder = Adam(params=itertools.chain(net.autoencoder_G.parameters(),net.autoencoder_F.parameters()),lr=lr,betas=(0.5,0.999))
     lr_autoencoder = ExponentialLR(optimizer_autoencoder, gamma=decay_lr)
     optimizer_discriminator = Adam(params=[p for p in net.patch_G.parameters()]+[p for p in net.patch_F.parameters()],lr=lr,betas=(0.5,0.999))
     lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=decay_lr)
@@ -100,6 +103,12 @@ if __name__ == "__main__":
         loss_gan_autoencoder_F_mean = RollingMeasure()
         loss_discriminator_G_mean = RollingMeasure()
         loss_discriminator_F_mean = RollingMeasure()
+        if i == 100:
+            lr_autoencoder.gamma = 0.95
+            lr_autoencoder.last_epoch = 0
+            lr_discriminator.gamma = 0.95
+            lr_discriminator.last_epoch = 0
+
         print("LR:{}".format(lr_autoencoder.get_lr()))
 
         # for each batch
@@ -145,71 +154,59 @@ if __name__ == "__main__":
 
 
         # X_Y_X
-        ten_X_Y_X = ten_X_Y_X.data.cpu()
-        # porto in range 0-1
-        ten_X_Y_X = (ten_X_Y_X + 1) / 2.0
-        out = make_grid(ten_X_Y_X, nrow=8)
-        writer.add_image("X_Y_X", out, step_index)
-        # Y_X_Y
-        ten_Y_X_Y = ten_Y_X_Y.data.cpu()
-        # porto in range 0-1
-        ten_Y_X_Y = (ten_Y_X_Y + 1) / 2.0
-        out = make_grid(ten_Y_X_Y, nrow=8)
-        writer.add_image("Y_X_Y", out, step_index)
+        ten_X_Y_X = ten_X_Y_X.data.cpu().numpy()[0].copy()
+        #salvo su file
+        ten_X_Y_X= (numpy.transpose(ten_X_Y_X,(1,2,0))+1)/2*255.0
+        ten_X_Y_X = ten_X_Y_X.astype("uint8")
+        Image.fromarray(ten_X_Y_X).save("results/{}_rec.jpg".format(i))
         # original
-        ten_original_X = ten_original_X.data.cpu()
-        # porto in range 0-1
-        ten_original_X = (ten_original_X + 1) / 2.0
-        out = make_grid(ten_original_X, nrow=8)
-        writer.add_image("X", out, step_index)
-        ten_original_Y = ten_original_Y.data.cpu()
-        # porto in range 0-1
-        ten_original_Y = (ten_original_Y + 1) / 2.0
-        out = make_grid(ten_original_Y, nrow=8)
-        writer.add_image("Y", out, step_index)
+        ten_original_X = ten_original_X.data.cpu().numpy()[0].copy()
+        #salvo su file
+        ten_original_X= (numpy.transpose(ten_original_X,(1,2,0))+1)/2*255.0
+        ten_original_X = ten_original_X.astype("uint8")
+        Image.fromarray(ten_original_X).save("results/{}_or.jpg".format(i))
 
-        # for j, (data_X,data_Y) in enumerate(zip(dataloader_test_X,dataloader_test_Y)):
-        #     net.eval()
-        #
-        #     data_X = Variable(data_X, volatile=True).float().cuda()
-        #     data_Y = Variable(data_Y, volatile=True).float().cuda()
-        #     ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y= net(data_X,data_Y)
-        #     #X_Y
-        #     ten_X_Y = ten_X_Y.data.cpu()
-        #     #porto in range 0-1
-        #     ten_X_Y = (ten_X_Y+1)/2.0
-        #     out = make_grid(ten_X_Y, nrow=8)
-        #     writer.add_image("X_Y", out, step_index)
-        #     #Y_X
-        #     ten_Y_X = ten_Y_X.data.cpu()
-        #     #porto in range 0-1
-        #     ten_Y_X = (ten_Y_X+1)/2.0
-        #     out = make_grid(ten_Y_X, nrow=8)
-        #     writer.add_image("Y_X", out, step_index)
-        #     # X_Y_X
-        #     ten_X_Y_X = ten_X_Y_X.data.cpu()
-        #     #porto in range 0-1
-        #     ten_X_Y_X = (ten_X_Y_X+1)/2.0
-        #     out = make_grid(ten_X_Y_X, nrow=8)
-        #     writer.add_image("X_Y_X", out, step_index)
-        #     #Y_X_Y
-        #     ten_Y_X_Y = ten_Y_X_Y.data.cpu()
-        #     #porto in range 0-1
-        #     ten_Y_X_Y = (ten_Y_X_Y+1)/2.0
-        #     out = make_grid(ten_Y_X_Y, nrow=8)
-        #     writer.add_image("Y_X_Y", out, step_index)
-        #     #original
-        #     ten_original_X = ten_original_X.data.cpu()
-        #     #porto in range 0-1
-        #     ten_original_X = (ten_original_X+1)/2.0
-        #     out = make_grid(ten_original_X, nrow=8)
-        #     writer.add_image("X", out, step_index)
-        #     ten_original_Y = ten_original_Y.data.cpu()
-        #     #porto in range 0-1
-        #     ten_original_Y = (ten_original_Y+1)/2.0
-        #     out = make_grid(ten_original_Y, nrow=8)
-        #     writer.add_image("Y", out, step_index)
-        #     break
+        for j, (data_X,data_Y) in enumerate(zip(dataloader_test_X,dataloader_test_Y)):
+            net.eval()
+            data_X = Variable(data_X, volatile=True).float().cuda()
+            data_Y = Variable(data_Y, volatile=True).float().cuda()
+            ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y= net(data_X,data_Y)
+            #X_Y
+            ten_X_Y = ten_X_Y.data.cpu()
+            #porto in range 0-1
+            ten_X_Y = (ten_X_Y+1)/2.0
+            out = make_grid(ten_X_Y, nrow=8)
+            writer.add_image("X_Y", out, step_index)
+            #Y_X
+            ten_Y_X = ten_Y_X.data.cpu()
+            #porto in range 0-1
+            ten_Y_X = (ten_Y_X+1)/2.0
+            out = make_grid(ten_Y_X, nrow=8)
+            writer.add_image("Y_X", out, step_index)
+            # X_Y_X
+            ten_X_Y_X = ten_X_Y_X.data.cpu()
+            #porto in range 0-1
+            ten_X_Y_X = (ten_X_Y_X+1)/2.0
+            out = make_grid(ten_X_Y_X, nrow=8)
+            writer.add_image("X_Y_X", out, step_index)
+            #Y_X_Y
+            ten_Y_X_Y = ten_Y_X_Y.data.cpu()
+            #porto in range 0-1
+            ten_Y_X_Y = (ten_Y_X_Y+1)/2.0
+            out = make_grid(ten_Y_X_Y, nrow=8)
+            writer.add_image("Y_X_Y", out, step_index)
+            #original
+            ten_original_X = ten_original_X.data.cpu()
+            #porto in range 0-1
+            ten_original_X = (ten_original_X+1)/2.0
+            out = make_grid(ten_original_X, nrow=8)
+            writer.add_image("X", out, step_index)
+            ten_original_Y = ten_original_Y.data.cpu()
+            #porto in range 0-1
+            ten_original_Y = (ten_original_Y+1)/2.0
+            out = make_grid(ten_original_Y, nrow=8)
+            writer.add_image("Y", out, step_index)
+            break
 
         step_index += 1
     exit(0)

@@ -2,7 +2,7 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 from torch.nn import functional as F
-from networks.utils import AutoEncoder, PatchDiscriminator
+from networks.utils import AutoEncoder, PatchDiscriminator,ImagesPool
 from torchvision.transforms import Normalize
 
 
@@ -71,25 +71,25 @@ class CycleGan(nn.Module):
         # B
         self.autoencoder_F = AutoEncoder(input_features=3, initial_features_map=initial_fetures_map_enocer)
         self.patch_F = PatchDiscriminator(input_features=3)
-
+        #pool
+        self.pool_G = ImagesPool(pool_size=50)
+        self.pool_F = ImagesPool(pool_size=50)
         self.init_parameters()
 
     def init_parameters(self):
         # just explore the network, find every weight and bias matrix and fill it
         for m in self.modules():
-            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
-                if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
-                    # init as original implementation
-                    nn.init.normal(m.weight, 0.0, 0.02)
-            elif isinstance(m, (nn.BatchNorm2d,)):
+            name = m.__class__.__name__
+            if "Conv" in name:
+                nn.init.normal(m.weight, 0.0, 0.02)
+            elif "Linear" in name:
+                nn.init.normal(m.weight, 0.0, 0.02)
+            elif "BatchNorm" in name:
                 nn.init.normal(m.weight, 1.0, 0.02)
                 nn.init.constant(m.bias, 0.0)
 
     def forward(self, ten_X, ten_Y, optimizer_encoder=None, optimizer_discriminator=None):
         if self.training:
-            # range
-            # ten_X = Normalize((0.5,0.5,0,5),(0.5,0.5,0,5))(ten_X)
-            # ten_X = ten_X / 127.5 - 1
             ten_original_X = ten_X
             ten_original_Y = ten_Y
             # forward A
@@ -102,6 +102,7 @@ class CycleGan(nn.Module):
             # GAN ENCODER
             ten_X_Y_classification = self.patch_G(ten_X_Y)
             ten_Y_X_classification = self.patch_F(ten_Y_X)
+            #LOSS AUTOENCODER
             l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F = self.loss_encoder(ten_original_X, ten_original_Y,
                                                                                    ten_X_Y_classification,
                                                                                    ten_Y_X_classification, ten_X_Y_X,
@@ -113,12 +114,17 @@ class CycleGan(nn.Module):
             # GAN DISCRIMINATOR
             ten_original_Y_classification = self.patch_G(ten_original_Y)
             ten_original_X_classification = self.patch_F(ten_original_X)
-            ten_X_Y_classification = self.patch_G(ten_X_Y.detach())
-            ten_Y_X_classification = self.patch_F(ten_Y_X.detach())
+            # POOL
+            ten_X_Y = self.pool_G(ten_X_Y.detach())
+            ten_Y_X = self.pool_G(ten_Y_X.detach())
+            ten_X_Y_classification = self.patch_G(ten_X_Y)
+            ten_Y_X_classification = self.patch_F(ten_Y_X)
+            #LOSS DISCRIMINATOR
             loss_discriminator_G, loss_discriminator_F = self.loss_patch(ten_original_Y_classification,
                                                                          ten_X_Y_classification,
                                                                          ten_original_X_classification,
                                                                          ten_Y_X_classification)
+            # BACKWARD DISCRIMINATOR
             optimizer_discriminator.zero_grad()
             self.patch_G.zero_grad()
             loss_discriminator_G.backward()

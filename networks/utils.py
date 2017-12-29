@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import numpy
 
 
 class ResidualBlock(nn.Module):
@@ -143,6 +144,24 @@ class PatchDiscriminator(nn.Module):
     def __call__(self, *args, **kwargs):
         return super(PatchDiscriminator, self).__call__(*args, **kwargs)
 
+
+class ImagesPool(object):
+    def __init__(self,pool_size):
+        self.pool_size = pool_size
+        self.images = []
+    def __call__(self, *args, **kwargs):
+        image = args[0]
+        if len(self.images) < self.pool_size:
+            self.images.append(image)
+            return image
+        else:
+            p = numpy.random.rand(1)[0]
+            if p > 0.5:
+                id = numpy.random.randint(0,self.pool_size,1)[0]
+                tmp = self.images[id].clone()
+                self.images[id] = image
+                image = tmp
+            return image
 
 if __name__ == "__main__":
     from torch.autograd import Variable
