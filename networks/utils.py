@@ -124,7 +124,7 @@ class PatchDiscriminator(nn.Module):
             nn.LeakyReLU(negative_slope=0.2,inplace=True)
         )
         self.c512 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=4, stride=1, padding=1),
             nn.InstanceNorm2d(num_features=512, affine=False),
             nn.LeakyReLU(negative_slope=0.2,inplace=True)
         )
@@ -149,11 +149,12 @@ class ImagesPool(object):
     def __init__(self,pool_size):
         self.pool_size = pool_size
         self.images = []
-    def __call__(self, *args, **kwargs):
-        image = args[0]
+        self.image = None
+
+    def add(self,image):
         if len(self.images) < self.pool_size:
             self.images.append(image)
-            return image
+            self.image = image
         else:
             p = numpy.random.rand(1)[0]
             if p > 0.5:
@@ -161,7 +162,10 @@ class ImagesPool(object):
                 tmp = self.images[id].clone()
                 self.images[id] = image
                 image = tmp
-            return image
+            self.image = image
+
+    def __call__(self, *args, **kwargs):
+        return self.image
 
 if __name__ == "__main__":
     from torch.autograd import Variable

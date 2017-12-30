@@ -1,10 +1,10 @@
-import torch
 import numpy
+numpy.random.seed(2)
+import torch
+torch.manual_seed(2)
+torch.cuda.manual_seed_all(2)
+torch.backends.cudnn.enabled = False
 import argparse
-from matplotlib import pyplot
-numpy.random.seed(8)
-torch.manual_seed(8)
-torch.cuda.manual_seed(8)
 from networks.cyclegan import CycleGan
 from torch.autograd import Variable
 from torch.utils.data import Dataset
@@ -42,7 +42,9 @@ if __name__ == "__main__":
     lambda_mse = args.lambda_mse
     lr = args.lr
     decay_lr = args.decay_lr
-    net = CycleGan(initial_fetures_map_enocer=64).cuda()
+
+    net = CycleGan(initial_features_autoencoder=64).cuda()
+
     print(net)
     print("autoencdoer parameters:{}",numpy.sum([p.numel() for p in net.autoencoder_G.parameters()]))
     print("discriminator parameters:{}",numpy.sum([p.numel() for p in net.patch_G.parameters()]))
@@ -64,10 +66,11 @@ if __name__ == "__main__":
     # OPTIM-LOSS
     # an optimizer for each of the sub-networks, so we can selectively backprop
     optimizer_autoencoder = Adam(params=itertools.chain(net.autoencoder_G.parameters(),net.autoencoder_F.parameters()),lr=lr,betas=(0.5,0.999))
-    lr_autoencoder = ExponentialLR(optimizer_autoencoder, gamma=decay_lr)
-    optimizer_discriminator = Adam(params=[p for p in net.patch_G.parameters()]+[p for p in net.patch_F.parameters()],lr=lr,betas=(0.5,0.999))
-    lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=decay_lr)
-
+    lr_autoencoder = ExponentialLR(optimizer_autoencoder, gamma=1)
+    optimizer_discriminator_G = Adam(params=net.patch_G.parameters(),lr=lr,betas=(0.5,0.999))
+    lr_discriminator_G = ExponentialLR(optimizer_discriminator_G, gamma=1)
+    optimizer_discriminator_F = Adam(params=net.patch_F.parameters(),lr=lr,betas=(0.5,0.999))
+    lr_discriminator_F = ExponentialLR(optimizer_discriminator_F, gamma=1)
     batch_number = len(dataloader_X)
     step_index = 0
     widgets = [
@@ -104,10 +107,12 @@ if __name__ == "__main__":
         loss_discriminator_G_mean = RollingMeasure()
         loss_discriminator_F_mean = RollingMeasure()
         if i == 100:
-            lr_autoencoder.gamma = 0.95
+            lr_autoencoder.gamma = decay_lr
             lr_autoencoder.last_epoch = 0
-            lr_discriminator.gamma = 0.95
-            lr_discriminator.last_epoch = 0
+            lr_discriminator_G.gamma = decay_lr
+            lr_discriminator_G.last_epoch = 0
+            lr_discriminator_F.gamma = decay_lr
+            lr_discriminator_F.last_epoch = 0
 
         print("LR:{}".format(lr_autoencoder.get_lr()))
 
@@ -120,8 +125,22 @@ if __name__ == "__main__":
             data_X = Variable(data_X, requires_grad=False).float().cuda()
             data_Y = Variable(data_Y, requires_grad=False).float().cuda()
 
+            # FORWARD AUTOENCODER
+            ten_original_X, ten_original_Y, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F = net(data_X,data_Y,mode="autoencoder")
+            # BACKWARD AUTOENCODER
+            optimizer_autoencoder.zero_grad()
+            (lambda_mse * (l1_G + l1_F) + loss_gan_autoencoder_G + loss_gan_autoencoder_F).backward()
+            optimizer_autoencoder.step()
+            # FORWARD DISCRIMINATOR
+            ten_original_X, ten_original_Y, loss_discriminator_G, loss_discriminator_F = net(data_X,data_Y,mode="discriminator")
+            # BACKWARD DISCRIMINATOR
+            optimizer_discriminator_G.zero_grad()
+            loss_discriminator_G.backward()
+            optimizer_discriminator_G.step()
+            optimizer_discriminator_F.zero_grad()
+            loss_discriminator_F.backward()
+            optimizer_discriminator_F.step()
             # get output
-            ten_original_X, ten_original_Y, ten_original_Y_classification, ten_X_Y_classification, ten_original_X_classification, ten_Y_X_classification, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, loss_discriminator_G, l1_F, loss_gan_autoencoder_F, loss_discriminator_F = net(data_X,data_Y,optimizer_autoencoder,optimizer_discriminator)
             # register mean values of the losses for logging
             loss_cycle_G_mean(l1_G.data.cpu().numpy()[0])
             loss_cycle_F_mean(l1_F.data.cpu().numpy()[0])
@@ -142,9 +161,9 @@ if __name__ == "__main__":
 
         # EPOCH END
         lr_autoencoder.step()
-        lr_discriminator.step()
+        lr_discriminator_G.step()
+        lr_discriminator_F.step()
         progress.finish()
-
         writer.add_scalar('loss_autoencoder_G', loss_gan_autoencoder_G_mean.measure, step_index)
         writer.add_scalar('loss_autoencoder_F', loss_gan_autoencoder_F_mean.measure, step_index)
         writer.add_scalar('loss_cycle_G', loss_cycle_G_mean.measure, step_index)

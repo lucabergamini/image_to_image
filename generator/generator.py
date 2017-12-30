@@ -1,15 +1,13 @@
 from torch.utils.data import Dataset
 import os
-import cv2
 from torchvision import transforms
-import numpy
 from PIL import Image
 class DATASET(Dataset):
     def __init__(self, data_folder):
         #list of file names
         self.data_names = [os.path.join(data_folder, name) for name in sorted(os.listdir(data_folder))]
         self.len = len(self.data_names)
-        transform_list = [transforms.Resize((286,286),Image.BICUBIC),
+        transform_list = [transforms.Resize((256,256),Image.BICUBIC),
                           transforms.RandomCrop(256),
                           transforms.RandomHorizontalFlip(),
                           transforms.ToTensor(),
@@ -30,11 +28,8 @@ class DATASET(Dataset):
         :return: image
         """
         data = Image.open(self.data_names[item])
-        #data = cv2.cvtColor(cv2.imread(self.data_names[item]), cv2.COLOR_BGR2RGB)
         # CHANNEL FIRST
         data = self.transform(data)
-        #data = data.transpose(2, 0, 1)
-
         return data
 
 
