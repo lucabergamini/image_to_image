@@ -45,7 +45,7 @@ class DATASET_SLURM(Dataset):
         # open the file
         self.file = open(os.path.join(data_folder, "data"), "rb")
         #get size
-        self.size  = numpy.fromfile(self.file, dtype=numpy.uint32, count=1)
+        self.size  = numpy.fromfile(self.file, dtype=numpy.uint32, count=1)[0]
         # get len
         self.len = int((os.path.getsize(os.path.join(data_folder, "data"))-4) / (self.size * self.size * 3))
         #trasform
@@ -54,7 +54,8 @@ class DATASET_SLURM(Dataset):
                           transforms.RandomHorizontalFlip(),
                           transforms.ToTensor(),
                           transforms.Normalize((0.5, 0.5, 0.5),
-                                               (0.5, 0.5, 0.5))]
+                                               (0.5, 0.5, 0.5))
+                          ]
 
         self.transform = transforms.Compose(transform_list)
 
@@ -73,6 +74,7 @@ class DATASET_SLURM(Dataset):
         offset = 4+item * 3 * self.size * self.size
         self.file.seek(offset)
         data = numpy.fromfile(self.file, dtype=numpy.uint8, count=(3 * self.size * self.size)).reshape(self.size,self.size,3)
+        data = Image.fromarray(data)
         # trasform
         data = self.transform(data)
         return data
@@ -82,7 +84,11 @@ class DATASET_SLURM(Dataset):
 if __name__ == "__main__":
     from torchvision.utils import make_grid
     from matplotlib import pyplot
-    dataloader_X = torch.utils.data.DataLoader(DATASET("/home/luca/Desktop/image_to_image/dataset/UKIYOE/train"), batch_size=1,
+    dataloader_X = torch.utils.data.DataLoader(DATASET_SLURM("/home/luca/Desktop/dataset_to_slurm/"), batch_size=1,
                                                shuffle=False, num_workers=1)
     for i,d in enumerate(dataloader_X):
+        d = d[0]
+        d = numpy.transpose(d.numpy(),(1,2,0))
+        pyplot.imshow(d)
+        pyplot.show()
         pass
