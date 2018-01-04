@@ -1,3 +1,9 @@
+import sys
+import os
+paths = [p for p in sys.path if p.endswith("image_to_image")]
+if len(paths) ==0:
+    sys.path.append(os.path.join(os.getcwd(),"image_to_image"))
+print(sys.path)
 import numpy
 
 numpy.random.seed(4)
