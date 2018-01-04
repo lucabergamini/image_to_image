@@ -84,6 +84,8 @@ class CycleGan(nn.Module):
                 #nn.init.constant(m.weight,  0.02)
                 #nn.init.constant(m.bias,0.02)
                 nn.init.normal(m.weight, 0.0, 0.02)
+                nn.init.constant(m.bias, 0)
+
             elif "Linear" in name:
                 #nn.init.constant(m.weight, 0.02)
                 #nn.init.constant(m.bias,0.02)
@@ -98,17 +100,17 @@ class CycleGan(nn.Module):
             if mode == "autoencoder":
                 ten_original_X = ten_X
                 ten_original_Y = ten_Y
+                # IDENTITY
+                ten_Y_Y = self.autoencoder_G(ten_Y)
                 # forward B
-                #ten_Y_X = self.autoencoder_F(ten_Y)
+                ten_X_X = self.autoencoder_F(ten_X)
                 # forward A
                 ten_X_Y = self.autoencoder_G(ten_X)
-                ten_X_Y_classification = self.patch_G(ten_X_Y)
-
                 # forward B
                 ten_Y_X = self.autoencoder_F(ten_Y)
                 # add to pool
                 self.pool_G.add(ten_X_Y.detach())
-                self.pool_G.add(ten_Y_X.detach())
+                self.pool_F.add(ten_Y_X.detach())
                 # CYCLE LOSS
                 ten_Y_X_Y = self.autoencoder_G(ten_Y_X)
                 ten_X_Y_X = self.autoencoder_F(ten_X_Y)
@@ -116,14 +118,16 @@ class CycleGan(nn.Module):
                 ten_X_Y_classification = self.patch_G(ten_X_Y)
                 ten_Y_X_classification = self.patch_F(ten_Y_X)
                 # LOSS AUTOENCODER
-                l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F = self.loss_encoder(ten_original_X,
+                l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G,loss_identity_F = self.loss_encoder(ten_original_X,
                                                                                                ten_original_Y,
                                                                                                ten_X_Y_classification,
                                                                                                ten_Y_X_classification,
                                                                                                ten_X_Y_X,
-                                                                                               ten_Y_X_Y)
+                                                                                               ten_Y_X_Y,
+                                                                                               ten_X_X,
+                                                                                               ten_Y_Y)
 
-                return ten_original_X, ten_original_Y, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F
+                return ten_original_X, ten_original_Y,ten_X_Y,ten_Y_X, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F,loss_identity_G,loss_identity_F
             elif mode == "discriminator":
                 ten_original_X = ten_X
                 ten_original_Y = ten_Y
@@ -131,22 +135,20 @@ class CycleGan(nn.Module):
                 ten_original_Y_classification = self.patch_G(ten_original_Y)
                 ten_original_X_classification = self.patch_F(ten_original_X)
                 # POOL
-                ten_X_Y = self.pool_G()
-                ten_Y_X = self.pool_G()
-                ten_X_Y_classification = self.patch_G(ten_X_Y)
-                ten_Y_X_classification = self.patch_F(ten_Y_X)
+                ten_pool = self.pool_G()
+                ten_X_Y_classification = self.patch_G(ten_pool)
+                ten_pool = self.pool_F()
+                ten_Y_X_classification = self.patch_F(ten_pool)
                 # LOSS DISCRIMINATOR
                 loss_discriminator_G, loss_discriminator_F = self.loss_patch(ten_original_Y_classification,
                                                                              ten_X_Y_classification,
                                                                              ten_original_X_classification,
                                                                              ten_Y_X_classification)
-                return ten_original_X, ten_original_Y, loss_discriminator_G, loss_discriminator_F
+                return ten_original_X, ten_original_Y ,loss_discriminator_G, loss_discriminator_F
 
             else:
                 raise NotImplementedError
         else:
-            # range
-            # ten_X = ten_X / 127.5 - 1
             ten_original_X = ten_X
             ten_original_Y = ten_Y
             # forward A
@@ -159,7 +161,8 @@ class CycleGan(nn.Module):
             return ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y
 
     def loss_encoder(self, ten_original_X, ten_original_Y, ten_X_Y_classification, ten_Y_X_classification, ten_X_Y_X,
-                     ten_Y_X_Y):
+                     ten_Y_X_Y,ten_X_X,ten_Y_Y):
+        # GAN loss
         gan_autoencoder_G = nn.MSELoss()(ten_X_Y_classification,
                                          torch.ones_like(ten_X_Y_classification).cuda())
         gan_autoencoder_F = nn.MSELoss()(ten_Y_X_classification,
@@ -168,7 +171,10 @@ class CycleGan(nn.Module):
         # CYCLE loss
         l1_G = nn.L1Loss()(ten_Y_X_Y, ten_original_Y)
         l1_F = nn.L1Loss()(ten_X_Y_X, ten_original_X)
-        return l1_G, gan_autoencoder_G, l1_F, gan_autoencoder_F
+        # IDENTITY loss
+        loss_identity_G = nn.L1Loss()(ten_Y_Y,ten_original_Y)
+        loss_identity_F = nn.L1Loss()(ten_X_X,ten_original_X)
+        return l1_G, gan_autoencoder_G, l1_F, gan_autoencoder_F, loss_identity_G,loss_identity_F
 
     def loss_patch(self, ten_original_Y_classification, ten_X_Y_classification, ten_original_X_classification,
                    ten_Y_X_classification):
