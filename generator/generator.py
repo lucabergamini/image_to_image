@@ -3,6 +3,7 @@ import os
 from torchvision import transforms
 from PIL import Image
 import torch
+import numpy
 
 class DATASET(Dataset):
     def __init__(self, data_folder):
@@ -37,6 +38,45 @@ class DATASET(Dataset):
         if data.shape[0] == 1:
             data = torch.cat((data,)*3,dim=0)
         return data
+
+class DATASET_SLURM(Dataset):
+    def __init__(self, data_folder):
+        #expected a file named data
+        # open the file
+        self.file = open(os.path.join(data_folder, "data"), "rb")
+        #get size
+        self.size  = numpy.fromfile(self.file, dtype=numpy.uint32, count=1)
+        # get len
+        self.len = int((os.path.getsize(os.path.join(data_folder, "data"))-4) / (self.size * self.size * 3))
+        #trasform
+        transform_list = [transforms.Resize((286,286),Image.BICUBIC),
+                          transforms.RandomCrop(256),
+                          transforms.RandomHorizontalFlip(),
+                          transforms.ToTensor(),
+                          transforms.Normalize((0.5, 0.5, 0.5),
+                                               (0.5, 0.5, 0.5))]
+
+        self.transform = transforms.Compose(transform_list)
+
+    def __len__(self):
+        return self.len
+
+    def __iter__(self):
+        return self
+
+    def __getitem__(self, item):
+        """
+
+        :param item: image index between 0-(len-1)
+        :return: image
+        """
+        offset = 4+item * 3 * self.size * self.size
+        self.file.seek(offset)
+        data = numpy.fromfile(self.file, dtype=numpy.uint8, count=(3 * self.size * self.size)).reshape(self.size,self.size,3)
+        # trasform
+        data = self.transform(data)
+        return data
+
 
 
 if __name__ == "__main__":
