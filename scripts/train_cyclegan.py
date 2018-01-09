@@ -3,7 +3,6 @@ import os
 paths = [p for p in sys.path if p.endswith("image_to_image")]
 if len(paths) ==0:
     sys.path.append(os.path.join(os.getcwd(),"image_to_image"))
-print(sys.path)
 import numpy
 
 numpy.random.seed(4)
@@ -36,7 +35,6 @@ if __name__ == "__main__":
     parser.add_argument("--lr", default=2e-04, action="store", type=float, dest="lr")
     parser.add_argument("--decay_lr", default=1, action="store", type=float, dest="decay_lr")
     parser.add_argument("--lambda_identity", default=0.5, action="store", type=float, dest="lambda_identity")
-    parser.add_argument("--lambda_features", default=1, action="store", type=float, dest="lambda_features")
     parser.add_argument("--slurm",default=False,action="store",type=bool,dest="slurm")
 
     args = parser.parse_args()
@@ -51,11 +49,10 @@ if __name__ == "__main__":
     lr = args.lr
     decay_lr = args.decay_lr
     lambda_identity = args.lambda_identity
-    lambda_features = args.lambda_features
     slurm = args.slurm
 
     net = CycleGan(initial_features_autoencoder=64).cuda()
-    checkpoint = ModelCheckpoint("checkpoints", comment="UKIYOE")
+    checkpoint = ModelCheckpoint("checkpoints", comment="CAT")
     print(net)
     print("autoencoder parameters:{}", numpy.sum([p.numel() for p in net.autoencoder_G.parameters()]))
     print("discriminator parameters:{}", numpy.sum([p.numel() for p in net.patch_G.parameters()]))
@@ -156,12 +153,12 @@ if __name__ == "__main__":
             data_Y = Variable(data_Y, requires_grad=False).float().cuda()
 
             # FORWARD AUTOENCODER
-            ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G, loss_identity_F, loss_features_G, loss_features_F = net(
+            ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G, loss_identity_F = net(
                 data_X, data_Y, mode="autoencoder")
             # BACKWARD AUTOENCODER
             optimizer_autoencoder.zero_grad()
             (lambda_mse * (l1_G + l1_F + lambda_identity * (loss_identity_G + loss_identity_F)) +
-             loss_gan_autoencoder_G + loss_gan_autoencoder_F+lambda_features*(loss_features_G+ loss_features_F)).backward()
+             loss_gan_autoencoder_G + loss_gan_autoencoder_F).backward()
             optimizer_autoencoder.step()
             # FORWARD DISCRIMINATOR
             ten_original_X, ten_original_Y, loss_discriminator_G, loss_discriminator_F = net(data_X, data_Y,

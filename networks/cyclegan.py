@@ -74,10 +74,6 @@ class CycleGan(nn.Module):
         # pool
         self.pool_G = ImagesPool(pool_size=pool_szie)
         self.pool_F = ImagesPool(pool_size=pool_szie)
-        # pool for features
-        self.pool_G_features = ImagesPool(pool_size=10)
-        self.pool_F_features = ImagesPool(pool_size=10)
-
         self.init_parameters()
 
     def init_parameters(self):
@@ -119,18 +115,12 @@ class CycleGan(nn.Module):
                 ten_Y_X_Y = self.autoencoder_G(ten_Y_X)
                 ten_X_Y_X = self.autoencoder_F(ten_X_Y)
                 # GAN ENCODER
-                ten_X_Y_classification, ten_X_Y_features = self.patch_G(ten_X_Y, True)
-                ten_Y_X_classification, ten_Y_X_features = self.patch_F(ten_Y_X, True)
-                # POOL FEATURES
-                if len(self.pool_G_features.images) == 0:
-                    ten_original_Y_features = ten_X_Y_features.detach()
-                    ten_original_X_features = ten_Y_X_features.detach()
-                else:
-                    ten_original_Y_features = torch.mean(torch.cat(self.pool_G_features.images,0),0, keepdim=True)
-                    ten_original_X_features = torch.mean(torch.cat(self.pool_F_features.images,0),0, keepdim=True)
+                ten_X_Y_classification = self.patch_G(ten_X_Y)
+                ten_Y_X_classification = self.patch_F(ten_Y_X)
+
 
                 # LOSS AUTOENCODER
-                l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G, loss_identity_F,loss_features_G,loss_features_F = self.loss_encoder(
+                l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G, loss_identity_F = self.loss_encoder(
                     ten_original_X,
                     ten_original_Y,
                     ten_X_Y_classification,
@@ -138,23 +128,16 @@ class CycleGan(nn.Module):
                     ten_X_Y_X,
                     ten_Y_X_Y,
                     ten_X_X,
-                    ten_Y_Y,
-                    ten_X_Y_features,
-                    ten_Y_X_features,
-                    ten_original_Y_features,
-                    ten_original_X_features)
+                    ten_Y_Y)
 
-                return ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G, loss_identity_F,loss_features_G,loss_features_F
+                return ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y, l1_G, loss_gan_autoencoder_G, l1_F, loss_gan_autoencoder_F, loss_identity_G, loss_identity_F
 
             elif mode == "discriminator":
                 ten_original_X = ten_X
                 ten_original_Y = ten_Y
                 # GAN DISCRIMINATOR
-                ten_original_Y_classification, ten_original_Y_features = self.patch_G(ten_original_Y, True)
-                ten_original_X_classification, ten_original_X_features = self.patch_F(ten_original_X, True)
-                # POOL FEATURES
-                self.pool_G_features.add(ten_original_Y_features.detach())
-                self.pool_F_features.add(ten_original_X_features.detach())
+                ten_original_Y_classification = self.patch_G(ten_original_Y)
+                ten_original_X_classification = self.patch_F(ten_original_X)
                 # POOL
                 ten_pool = self.pool_G()
                 ten_X_Y_classification = self.patch_G(ten_pool)
@@ -182,8 +165,7 @@ class CycleGan(nn.Module):
             return ten_original_X, ten_original_Y, ten_X_Y, ten_Y_X, ten_X_Y_X, ten_Y_X_Y
 
     def loss_encoder(self, ten_original_X, ten_original_Y, ten_X_Y_classification, ten_Y_X_classification, ten_X_Y_X,
-                     ten_Y_X_Y, ten_X_X, ten_Y_Y, ten_X_Y_features,ten_Y_X_features,ten_original_Y_features,
-                     ten_original_X_features):
+                     ten_Y_X_Y, ten_X_X, ten_Y_Y):
         # GAN loss
         gan_autoencoder_G = nn.MSELoss()(ten_X_Y_classification,
                                          torch.ones_like(ten_X_Y_classification).cuda())
@@ -196,11 +178,8 @@ class CycleGan(nn.Module):
         # IDENTITY loss
         loss_identity_G = nn.L1Loss()(ten_Y_Y, ten_original_Y)
         loss_identity_F = nn.L1Loss()(ten_X_X, ten_original_X)
-        # FEATURES loss
-        loss_features_G = nn.L1Loss()(ten_X_Y_features,ten_original_Y_features)
-        loss_features_F = nn.L1Loss()(ten_Y_X_features,ten_original_X_features)
 
-        return l1_G, gan_autoencoder_G, l1_F, gan_autoencoder_F, loss_identity_G, loss_identity_F,loss_features_G,loss_features_F
+        return l1_G, gan_autoencoder_G, l1_F, gan_autoencoder_F, loss_identity_G, loss_identity_F
 
     def loss_patch(self, ten_original_Y_classification, ten_X_Y_classification, ten_original_X_classification,
                    ten_Y_X_classification):

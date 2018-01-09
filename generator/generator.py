@@ -15,7 +15,8 @@ class DATASET(Dataset):
                           transforms.RandomHorizontalFlip(),
                           transforms.ToTensor(),
                           transforms.Normalize((0.5, 0.5, 0.5),
-                                               (0.5, 0.5, 0.5))]
+                                               (0.5, 0.5, 0.5))
+                          ]
 
         self.transform = transforms.Compose(transform_list)
 

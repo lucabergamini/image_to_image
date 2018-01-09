@@ -133,22 +133,13 @@ class PatchDiscriminator(nn.Module):
             # nn.Sigmoid()
         )
 
-    def forward(self, ten,features=False):
-        if features:
-            ten = self.c64(ten)
-            ten_128 = self.c128(ten)
-            ten = self.c256(ten_128)
-            ten = self.c512(ten)
-            ten = self.c1(ten)
-            return ten,ten_128
-
-        else:
-            ten = self.c64(ten)
-            ten = self.c128(ten)
-            ten = self.c256(ten)
-            ten = self.c512(ten)
-            ten = self.c1(ten)
-            return ten
+    def forward(self, ten):
+        ten = self.c64(ten)
+        ten = self.c128(ten)
+        ten = self.c256(ten)
+        ten = self.c512(ten)
+        ten = self.c1(ten)
+        return ten
 
     def __call__(self, *args, **kwargs):
         return super(PatchDiscriminator, self).__call__(*args, **kwargs)
